@@ -35,80 +35,7 @@ def get_parser(parser_name, parser_module):
 def get_driver(config, interface, parser, idx):
     """ global c """
 
-    from complexconfig.configcontainer import configcontainer
     name = config['driver']
-    if name == "bro":
-        from nebula_sniffer.drivers.brohttpdriver import BroHttpDriver
-        embedded = config.get("embedded", True)
-        ports = config['ports']
-        from nebula_sniffer.utils import expand_ports
-        ports = expand_ports(ports)  # extend it
-        start_port = int(config['start_port'])
-        bpf_filter = config.get("bpf_filter", "")
-
-        home = configcontainer.get_config("sniffer").get_string("sniffer.bro.home")
-
-        if ports and home:
-            driver = BroHttpDriver(interface=interface, embedded_bro=embedded, idx=idx, ports=ports, bro_home=home,
-                                   start_port=start_port, bpf_filter=bpf_filter)
-        elif ports:
-            driver = BroHttpDriver(interface=interface, embedded_bro=embedded, idx=idx, ports=ports,
-                                   start_port=start_port, bpf_filter=bpf_filter)
-        elif home:
-            driver = BroHttpDriver(interface=interface, embedded_bro=embedded, idx=idx, bro_home=home,
-                                   start_port=start_port, bpf_filter=bpf_filter)
-        else:
-            driver = BroHttpDriver(interface=interface, embedded_bro=embedded, idx=idx,
-                                   start_port=start_port, bpf_filter=bpf_filter)
-        return driver
-
-    if name == "tshark":
-        from nebula_sniffer.drivers.tsharkhttpsdriver import TsharkHttpsDriver
-        interface = interface
-        ports = config["ports"]
-        bpf_filter = config.get("bpf_filter", "")
-        if ports:
-            driver = TsharkHttpsDriver(interface=interface, ports=ports, bpf_filter=bpf_filter)
-        else:
-            driver = TsharkHttpsDriver(interface=interface, bpf_filter=bpf_filter)
-        return driver
-
-    if name == "syslog":
-        from nebula_sniffer.drivers.syslogdriver import SyslogDriver
-        port = int(config["port"])
-        driver = SyslogDriver(port)
-        return driver
-
-    if name == "packetbeat":
-        from nebula_sniffer.drivers.pktdriver import PacketbeatDriver
-        port = int(config["port"])
-        driver = PacketbeatDriver(port)
-        return driver
-
-    if name == "redislist":
-        from nebula_sniffer.drivers.redislistdriver import RedisListDriver
-        host = config["host"]
-        port = int(config['port'])
-        password = config.get('password', '')
-        driver = RedisListDriver(host, port, password)
-        return driver
-
-    if name == "logstash":
-        from nebula_sniffer.drivers.logstashdriver import LogstashDriver
-        port = int(config['port'])
-        driver = LogstashDriver(port)
-        return driver
-
-    if name == "rabbitmq":
-        from nebula_sniffer.drivers.rabbitmqdriver import RabbitmqDriver
-        amqp_url = config['amqp_url']
-        queue_name = config['queue_name']
-        exchange_name = config['exchange_name']
-        exchange_type = config['exchange_type']
-        durable = bool(config['durable'])
-        routing_key = config['routing_key']
-        driver = RabbitmqDriver(amqp_url, queue_name, exchange_name, exchange_type, durable, routing_key)
-        return driver
 
     if name == "kafka":
         from nebula_sniffer.drivers.kafkadriver import KafkaDriver
@@ -129,7 +56,7 @@ def run_task(interface, idx, parser, driver, is_process=True):
     def interrupt_handler(signum, frame):
         logger.warn("handler signal:{}, exit now.".format(signum))
         main.stop()
-        #driver.stop()
+        # driver.stop()
         sys.exit(0)
 
     if is_process:
@@ -169,13 +96,9 @@ def start():
         interface = source_config["interface"]
         p = get_parser(parser_name, parser_module)
 
-        for idx in range(1, instances+1):
+        for idx in range(1, instances + 1):
             driver = get_driver(source_config, interface, p, idx)
-            if processes_type == "process":
-                # 获取到驱动并开启子进程进行数据处理
-                task = run_in_subprocess(run_task, interface, idx, p, driver, True)
-            else:
-                task = run_in_thread(run_task, interface, idx, p, driver, False)
+            task = run_in_thread(run_task, interface, idx, p, driver, False)
             running_tasks.append(task)
             running_drivers.append(driver)
             logger.warn("Finished starting source {} driver {} index {} on interface {}".format(source, driver, idx,
@@ -248,10 +171,10 @@ def init_config():
     from complexconfig.configcontainer import configcontainer
 
     # init the global config on /etc/nebula/nebula.conf
-    global_config_loader = FileLoader("global_config_loader", Global_Conf_FN)
-    global_config_parser = PropertiesParser("global_config_parser")
-    # add sniffer prefix
-    global_config = Config(global_config_loader, global_config_parser, cb_after_load=lambda x: {"sniffer": x})
+    # global_config_loader = FileLoader("global_config_loader", Global_Conf_FN)
+    # global_config_parser = PropertiesParser("global_config_parser")
+    # # add sniffer prefix
+    # global_config = Config(global_config_loader, global_config_parser, cb_after_load=lambda x: {"sniffer": x})
 
     # init the sniffer module configuration on /etc/nebula/sniffer/sniffer.conf
     file_config_loader = FileLoader("file_config_loader", Sniffer_Conf_FN)
@@ -267,13 +190,16 @@ def init_config():
     web_config_parser = ThreathunterJsonParser("web_config_parser")
     web_config = Config(web_config_loader, web_config_parser)
     web_config.load_config(sync=True)
-    print "WebLoader: web_config_loader, sniffer.web_config.config_url:{}, params:{}".format(file_config.get_string("sniffer.web_config.config_url"),{"auth": file_config.get_string("sniffer.web_config.auth")})
+    print "WebLoader: web_config_loader, sniffer.web_config.config_url:{}, params:{}".format(
+        file_config.get_string("sniffer.web_config.config_url"),
+        {"auth": file_config.get_string("sniffer.web_config.auth")})
     print_with_time("successfully loaded the web config from {}".format(
         file_config.get_string("sniffer.web_config.config_url")))
 
     # build the cascading config
     # file config will be updated every half an hour, while the web config will be updated every 5 minute
-    cascading_config = CascadingConfig(PeriodicalConfig(global_config, 1800), PeriodicalConfig(file_config, 1800),
+    cascading_config = CascadingConfig(#PeriodicalConfig(global_config, 1800),
+                                       PeriodicalConfig(file_config, 1800),
                                        PeriodicalConfig(web_config, 300))
     configcontainer.set_config("sniffer", cascading_config)
 
@@ -324,6 +250,7 @@ def print_with_time(msg):
     print "{}: {}".format(time.strftime(Logging_Datefmt), msg)
     logger.info("{}: {}".format(time.strftime(Logging_Datefmt), msg))
 
+
 def init_autoparser():
     from nebula_parser.parser_initializer import init_parser, build_fn_load_event_schemas_on_web, \
         build_fn_load_parsers_on_web
@@ -347,7 +274,7 @@ def init_redis():
     RedisCtx.get_instance().host = host
     RedisCtx.get_instance().port = port
     RedisCtx.get_instance().password = password
-    print_with_time("successfully init redis[host={},port={},password={}]".format(host, port, "*"*len(password)))
+    print_with_time("successfully init redis[host={},port={},password={}]".format(host, port, "*" * len(password)))
 
 
 def init_metrics():
@@ -373,12 +300,14 @@ def init_metrics():
     MetricsAgent.get_instance().initialize_by_dict(metrics_config)
     print_with_time("successfully initializing metrics with config {}".format(str(metrics_config)))
 
+
 if __name__ == "__main__":
     # logging level
     print_debug_level()
 
     # init logging
     print_with_time("starting sniffer")
+    init_logging('config')
 
     # init config
     print_with_time("start to init config")
@@ -405,4 +334,3 @@ if __name__ == "__main__":
     # start the program
     print_with_time("start to processing")
     start()
-

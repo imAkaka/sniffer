@@ -5,7 +5,7 @@ from os import path as opath
 
 # debug 模式
 
-DEBUG = >DEBUG<
+DEBUG = True
 
 # path
 Base_Path = opath.dirname(__file__)
